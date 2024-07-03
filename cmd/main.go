@@ -4,7 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"poke-repl/repl"
+	"poke-repl/internal/config"
+	"poke-repl/internal/repl"
 )
 
 const (
@@ -12,6 +13,8 @@ const (
 )
 
 func main() {
+	cfg := &config.Config{}
+
 	for {
 		scanner := bufio.NewScanner(os.Stdin)
 		fmt.Printf("%s > ", cliName)
@@ -22,7 +25,7 @@ func main() {
 				fmt.Println(err)
 				continue
 			}
-			err = cmd.Callback()
+			err = cmd.Callback(cfg)
 			if err != nil {
 				fmt.Println(err)
 			}
