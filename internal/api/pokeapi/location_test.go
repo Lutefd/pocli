@@ -1,6 +1,7 @@
 package pokeapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"poke-repl/internal/config"
@@ -150,5 +151,72 @@ func TestLocationResult_GetLocation_DecoderError(t *testing.T) {
 	_, err := locationResult.GetLocation(server.URL, mockConfig)
 	if err == nil {
 		t.Error("Expected a JSON decoder error, got nil")
+	}
+}
+func TestLocationResult_GetLocation_CachedData(t *testing.T) {
+	mockConfig := &config.Config{
+		NextUrl:     "",
+		PreviousUrl: "",
+	}
+	locationResult := &LocationResult{}
+	cachedLocations := LocationList{
+		{Name: "Location 1", URL: "https://pokeapi.co/api/v2/location/1/"},
+		{Name: "Location 2", URL: "https://pokeapi.co/api/v2/location/2/"},
+	}
+	cachedData, _ := json.Marshal(cachedLocations)
+	pokeCache.Set("https://pokeapi.co/api/v2/location/", cachedData)
+	locations, err := locationResult.GetLocation("https://pokeapi.co/api/v2/location/", mockConfig)
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(locations, cachedLocations) {
+		t.Errorf("Expected locations %v, but got %v", cachedLocations, locations)
+	}
+	if mockConfig.NextUrl != "" {
+		t.Errorf("Expected NextUrl to be empty, but got %s", mockConfig.NextUrl)
+	}
+	if mockConfig.PreviousUrl != "" {
+		t.Errorf("Expected PreviousUrl to be empty, but got %s", mockConfig.PreviousUrl)
+	}
+}
+
+func TestLocationResult_GetLocation_ErrorFetching(t *testing.T) {
+	mockConfig := &config.Config{
+		NextUrl:     "",
+		PreviousUrl: "",
+	}
+	locationResult := &LocationResult{}
+	_, err := locationResult.GetLocation("https://pokeapi.co/api/v2/location/", mockConfig)
+	if err == nil {
+		t.Error("Expected an error, got nil")
+	}
+	if mockConfig.NextUrl != "" {
+		t.Errorf("Expected NextUrl to be empty, but got %s", mockConfig.NextUrl)
+	}
+	if mockConfig.PreviousUrl != "" {
+		t.Errorf("Expected PreviousUrl to be empty, but got %s", mockConfig.PreviousUrl)
+	}
+}
+
+func TestLocationResult_GetLocation_InvalidJSON(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("{invalid JSON"))
+	}))
+	defer server.Close()
+	mockConfig := &config.Config{
+		NextUrl:     "",
+		PreviousUrl: "",
+	}
+	locationResult := &LocationResult{}
+	_, err := locationResult.GetLocation(server.URL, mockConfig)
+	if err == nil {
+		t.Error("Expected a JSON decoder error, got nil")
+	}
+	if mockConfig.NextUrl != "" {
+		t.Errorf("Expected NextUrl to be empty, but got %s", mockConfig.NextUrl)
+	}
+	if mockConfig.PreviousUrl != "" {
+		t.Errorf("Expected PreviousUrl to be empty, but got %s", mockConfig.PreviousUrl)
 	}
 }
