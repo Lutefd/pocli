@@ -7,8 +7,8 @@ import (
 
 func TestCommandsMap(t *testing.T) {
 	commands := CommandsMap()
-	if len(commands) != 6 {
-		t.Errorf("Expected 6 commands, got %d", len(commands))
+	if len(commands) != 7 {
+		t.Errorf("Expected 7 commands, got %d", len(commands))
 	}
 }
 
@@ -30,14 +30,17 @@ func TestLookupCommandNotFound(t *testing.T) {
 }
 func TestCommandHelp(t *testing.T) {
 	cfg := &config.Config{}
-	err := commandHelp(cfg)
+	args := []string{}
+	err := commandHelp(cfg, args)
 	if err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
 }
 func TestClearScreen(t *testing.T) {
 	cfg := &config.Config{}
-	err := clearScreen(cfg)
+	args := []string{}
+
+	err := clearScreen(cfg, args)
 	if err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
@@ -49,7 +52,8 @@ func TestClearScreen(t *testing.T) {
 
 func TestMapCommand(t *testing.T) {
 	cfg := &config.Config{}
-	err := mapCommand(cfg)
+	args := []string{}
+	err := mapCommand(cfg, args)
 	if err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
@@ -59,7 +63,7 @@ func TestPageNavigation(t *testing.T) {
 	tests := []struct {
 		name      string
 		setupCfg  func() *config.Config
-		testFunc  func(cfg *config.Config) error
+		testFunc  func(cfg *config.Config, args []string) error
 		expectErr bool
 	}{
 		{
@@ -111,11 +115,11 @@ func TestPageNavigation(t *testing.T) {
 			expectErr: true,
 		},
 	}
-
+	args := []string{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := tt.setupCfg()
-			err := tt.testFunc(cfg)
+			err := tt.testFunc(cfg, args)
 			if tt.expectErr && err == nil {
 				t.Errorf("Expected an error, got nil")
 			} else if !tt.expectErr && err != nil {

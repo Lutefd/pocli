@@ -12,7 +12,7 @@ type cliCommand struct {
 	name        string
 	description string
 	url         string
-	Callback    func(cfg *config.Config) error
+	Callback    func(cfg *config.Config, args []string) error
 }
 
 func CommandsMap() map[string]cliCommand {
@@ -48,9 +48,15 @@ func CommandsMap() map[string]cliCommand {
 			url:         "https://pokeapi.co/api/v2/location-area?offset=0&limit=20",
 			Callback:    mapCommand,
 		},
+		"explore": {
+			name:        "explore",
+			description: "Exlore the pokemon world area by area",
+			url:         "https://pokeapi.co/api/v2/location-area/",
+			Callback:    exploreCommand,
+		},
 	}
 }
-func commandHelp(cfg *config.Config) error {
+func commandHelp(cfg *config.Config, args []string) error {
 	commands := CommandsMap()
 	fmt.Println("Available commands:")
 	for name, command := range commands {
@@ -60,7 +66,7 @@ func commandHelp(cfg *config.Config) error {
 	return nil
 }
 
-func commandExit(cfg *config.Config) error {
+func commandExit(cfg *config.Config, args []string) error {
 	fmt.Println("Bye!")
 	os.Exit(1)
 	return nil
@@ -72,7 +78,7 @@ func LookupCommand(name string) (cliCommand, error) {
 	}
 	return command, nil
 }
-func clearScreen(cfg *config.Config) error {
+func clearScreen(cfg *config.Config, args []string) error {
 	cmd := exec.Command("clear")
 	cmd.Stdout = os.Stdout
 	cmd.Run()
@@ -80,32 +86,32 @@ func clearScreen(cfg *config.Config) error {
 	return nil
 }
 
-func nextPage(cfg *config.Config) error {
+func nextPage(cfg *config.Config, args []string) error {
 	if cfg.NextUrl == "" {
 		return fmt.Errorf("no next page available")
 	}
 	switch cfg.Cmd {
 	case "map":
 		cfg.Referrer = "next"
-		return mapCommand(cfg)
+		return mapCommand(cfg, args)
 
 	}
 	return nil
 }
-func previousPage(cfg *config.Config) error {
+func previousPage(cfg *config.Config, args []string) error {
 	if cfg.PreviousUrl == "" {
 		return fmt.Errorf("no previous page available")
 	}
 	switch cfg.Cmd {
 	case "map":
 		cfg.Referrer = "previous"
-		return mapCommand(cfg)
+		return mapCommand(cfg, args)
 
 	}
 	return nil
 }
 
-func mapCommand(cfg *config.Config) error {
+func mapCommand(cfg *config.Config, args []string) error {
 	cfg.Cmd = "map"
 	cmd, err := LookupCommand("map")
 	if err != nil {
@@ -120,10 +126,29 @@ func mapCommand(cfg *config.Config) error {
 	}
 	locations, err := pokeapi.Location.GetLocation(defaultUrl, cfg)
 	for _, location := range locations {
-		fmt.Println(location.Name)
+		fmt.Printf("- %s\n", location.Name)
 	}
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func exploreCommand(cfg *config.Config, args []string) error {
+	if len(args) > 1 {
+		return fmt.Errorf("only one area can be explored at a time")
+	}
+	cfg.Cmd = "explore"
+	cmd, err := LookupCommand("explore")
+	if err != nil {
+		return err
+	}
+	pokemonList, err := pokeapi.Explorer.Explore(cmd.url, args[0], cfg)
+	if err != nil {
+		return err
+	}
+	for _, pokemon := range pokemonList {
+		fmt.Printf("- %s\n", pokemon)
 	}
 	return nil
 }

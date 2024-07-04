@@ -6,6 +6,7 @@ import (
 	"os"
 	"poke-repl/cmd/repl"
 	"poke-repl/internal/config"
+	"strings"
 )
 
 const (
@@ -20,12 +21,13 @@ func main() {
 		fmt.Printf("%s > ", cliName)
 		if scanner.Scan() {
 			command := scanner.Text()
-			cmd, err := repl.LookupCommand(command)
+			commandArgs := strings.Split(command, " ")
+			cmd, err := repl.LookupCommand(commandArgs[0])
 			if err != nil {
 				fmt.Println(err)
 				continue
 			}
-			err = cmd.Callback(cfg)
+			err = cmd.Callback(cfg, commandArgs[1:])
 			if err != nil {
 				fmt.Println(err)
 			}
