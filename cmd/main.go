@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"poke-repl/cmd/repl"
 	"poke-repl/internal/config"
-	"poke-repl/internal/repl"
 )
 
 const (
