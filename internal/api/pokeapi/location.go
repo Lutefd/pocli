@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"poke-repl/internal/cache"
 	"poke-repl/internal/config"
-	"time"
 )
 
 var Location LocationResult
@@ -26,16 +24,22 @@ type LocationResult struct {
 	} `json:"results"`
 }
 
-var pokeCache = cache.NewCache(time.Minute * 5)
-
 func (l *LocationResult) GetLocation(url string, cfg *config.Config) (LocationList, error) {
 	if cached, ok := pokeCache.Get(url); ok {
-		var cachedLocations LocationList
-		err := json.Unmarshal(cached, &cachedLocations)
+		var cachedResult LocationResult
+		err := json.Unmarshal(cached, &cachedResult)
 		if err != nil {
 			return nil, fmt.Errorf("error deserializing cached data: %w", err)
 		}
-		return cachedLocations, nil
+		cfg.NextUrl = cachedResult.Next
+		if prevUrl, ok := cachedResult.Previous.(string); ok {
+			cfg.PreviousUrl = prevUrl
+		}
+		var locations LocationList
+		for _, item := range cachedResult.Results {
+			locations = append(locations, LocationInfo{Name: item.Name, URL: item.URL})
+		}
+		return locations, nil
 	}
 	res, err := http.Get(url)
 	if err != nil {
@@ -53,14 +57,14 @@ func (l *LocationResult) GetLocation(url string, cfg *config.Config) (LocationLi
 	if prevUrl, ok := result.Previous.(string); ok {
 		cfg.PreviousUrl = prevUrl
 	}
+	resultData, err := json.Marshal(result)
+	if err != nil {
+		return nil, err
+	}
+	pokeCache.Set(url, resultData)
 	var locations LocationList
 	for _, item := range result.Results {
 		locations = append(locations, LocationInfo{Name: item.Name, URL: item.URL})
 	}
-	locationsData, err := json.Marshal(locations)
-	if err != nil {
-		return nil, err
-	}
-	pokeCache.Set(url, locationsData)
 	return locations, nil
 }

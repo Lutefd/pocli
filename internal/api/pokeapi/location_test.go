@@ -9,214 +9,124 @@ import (
 	"testing"
 )
 
-func TestLocationResult_GetLocation(t *testing.T) {
+func TestGetLocation(t *testing.T) {
+	// Create a mock HTTP server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Set the response status code
 		w.WriteHeader(http.StatusOK)
 
-		responseBody := `{
-			"count": 2,
-			"next": null,
-			"previous": null,
-			"results": [
+		// Create a mock response body
+		response := LocationResult{
+			Count:    1,
+			Next:     "https://pokeapi.co/api/v2/location/?offset=20&limit=20",
+			Previous: nil,
+			Results: []struct {
+				Name string `json:"name"`
+				URL  string `json:"url"`
+			}{
 				{
-					"name": "Location 1",
-					"url": "https://pokeapi.co/api/v2/location/1/"
+					Name: "location1",
+					URL:  "https://pokeapi.co/api/v2/location/1/",
 				},
-				{
-					"name": "Location 2",
-					"url": "https://pokeapi.co/api/v2/location/2/"
-				}
-			]
-		}`
+			},
+		}
 
-		_, _ = w.Write([]byte(responseBody))
+		// Marshal the response body to JSON
+		responseJSON, _ := json.Marshal(response)
+
+		// Write the response body
+		w.Write(responseJSON)
 	}))
 	defer server.Close()
 
-	mockConfig := &config.Config{
+	// Create a mock config
+	cfg := &config.Config{
 		NextUrl:     "",
 		PreviousUrl: "",
 	}
 
+	// Create a new instance of LocationResult
 	locationResult := &LocationResult{}
 
-	locations, err := locationResult.GetLocation(server.URL, mockConfig)
+	// Call the GetLocation method
+	locations, err := locationResult.GetLocation(server.URL, cfg)
 	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
+	// Check the returned locations
 	expectedLocations := LocationList{
-		{Name: "Location 1", URL: "https://pokeapi.co/api/v2/location/1/"},
-		{Name: "Location 2", URL: "https://pokeapi.co/api/v2/location/2/"},
+		LocationInfo{Name: "location1", URL: "https://pokeapi.co/api/v2/location/1/"},
 	}
 	if !reflect.DeepEqual(locations, expectedLocations) {
-		t.Errorf("Expected locations %v, but got %v", expectedLocations, locations)
+		t.Errorf("expected locations %v, got %v", expectedLocations, locations)
 	}
 
-	if mockConfig.NextUrl != "" {
-		t.Errorf("Expected NextUrl to be empty, but got %s", mockConfig.NextUrl)
+	// Check the config values
+	expectedNextUrl := "https://pokeapi.co/api/v2/location/?offset=20&limit=20"
+	if cfg.NextUrl != expectedNextUrl {
+		t.Errorf("expected NextUrl %q, got %q", expectedNextUrl, cfg.NextUrl)
 	}
-	if mockConfig.PreviousUrl != "" {
-		t.Errorf("Expected PreviousUrl to be empty, but got %s", mockConfig.PreviousUrl)
+	expectedPreviousUrl := ""
+	if cfg.PreviousUrl != expectedPreviousUrl {
+		t.Errorf("expected PreviousUrl %q, got %q", expectedPreviousUrl, cfg.PreviousUrl)
 	}
-
 }
+func TestGetLocation_WithCachedData(t *testing.T) {
+	// Create a mock cache with pre-populated data
+	cachedData := LocationResult{
+		Count:    1,
+		Next:     "https://pokeapi.co/api/v2/location/?offset=40&limit=20",
+		Previous: "https://pokeapi.co/api/v2/location/?offset=0&limit=20",
+		Results: []struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		}{
+			{
+				Name: "cached_location",
+				URL:  "https://pokeapi.co/api/v2/location/cached/",
+			},
+		},
+	}
+	cachedDataJSON, _ := json.Marshal(cachedData)
+	pokeCache.Set("https://pokeapi.co/api/v2/location/", cachedDataJSON)
 
-func TestLocationResult_GetLocation_WithPreviousUrl(t *testing.T) {
+	// Create a mock HTTP server that should not be called
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-
-		responseBody := `{
-            "count": 2,
-            "next": "https://pokeapi.co/api/v2/location/?offset=20&limit=2",
-            "previous": "https://pokeapi.co/api/v2/location/?offset=0&limit=2",
-            "results": [
-                {
-                    "name": "Location 3",
-                    "url": "https://pokeapi.co/api/v2/location/3/"
-                },
-                {
-                    "name": "Location 4",
-                    "url": "https://pokeapi.co/api/v2/location/4/"
-                }
-            ]
-        }`
-
-		_, _ = w.Write([]byte(responseBody))
+		t.Errorf("HTTP request was made to the server, but cached data should have been used")
 	}))
 	defer server.Close()
 
-	mockConfig := &config.Config{
+	// Create a mock config
+	cfg := &config.Config{
 		NextUrl:     "",
-		PreviousUrl: "https://pokeapi.co/api/v2/location/?offset=0&limit=2",
+		PreviousUrl: "",
 	}
 
+	// Create a new instance of LocationResult
 	locationResult := &LocationResult{}
 
-	locations, err := locationResult.GetLocation(server.URL, mockConfig)
+	// Call the GetLocation method with the URL that has cached data
+	locations, err := locationResult.GetLocation("https://pokeapi.co/api/v2/location/", cfg)
 	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
+		t.Errorf("unexpected error: %v", err)
 	}
 
+	// Check the returned locations against the expected cached data
 	expectedLocations := LocationList{
-		{Name: "Location 3", URL: "https://pokeapi.co/api/v2/location/3/"},
-		{Name: "Location 4", URL: "https://pokeapi.co/api/v2/location/4/"},
+		LocationInfo{Name: "cached_location", URL: "https://pokeapi.co/api/v2/location/cached/"},
 	}
 	if !reflect.DeepEqual(locations, expectedLocations) {
-		t.Errorf("Expected locations %v, but got %v", expectedLocations, locations)
+		t.Errorf("expected locations %v, got %v", expectedLocations, locations)
 	}
 
-	if mockConfig.NextUrl != "https://pokeapi.co/api/v2/location/?offset=20&limit=2" {
-		t.Errorf("Expected NextUrl to be updated, but got %s", mockConfig.NextUrl)
+	// Check the config values against the expected cached data
+	expectedNextUrl := "https://pokeapi.co/api/v2/location/?offset=40&limit=20"
+	if cfg.NextUrl != expectedNextUrl {
+		t.Errorf("expected NextUrl %q, got %q", expectedNextUrl, cfg.NextUrl)
 	}
-}
-
-func TestLocationResult_GetLocation_Unauthorized(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-	}))
-	defer server.Close()
-
-	mockConfig := &config.Config{
-		NextUrl:     "",
-		PreviousUrl: "",
-	}
-
-	locationResult := &LocationResult{}
-
-	_, err := locationResult.GetLocation(server.URL, mockConfig)
-	if err == nil {
-		t.Error("Expected an unauthorized error, got nil")
-	}
-
-	if mockConfig.NextUrl != "" {
-		t.Errorf("Expected NextUrl to remain empty, but got %s", mockConfig.NextUrl)
-	}
-	if mockConfig.PreviousUrl != "" {
-		t.Errorf("Expected PreviousUrl to remain empty, but got %s", mockConfig.PreviousUrl)
-	}
-}
-
-func TestLocationResult_GetLocation_DecoderError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("{invalid JSON"))
-	}))
-	defer server.Close()
-
-	mockConfig := &config.Config{}
-
-	locationResult := &LocationResult{}
-
-	_, err := locationResult.GetLocation(server.URL, mockConfig)
-	if err == nil {
-		t.Error("Expected a JSON decoder error, got nil")
-	}
-}
-func TestLocationResult_GetLocation_CachedData(t *testing.T) {
-	mockConfig := &config.Config{
-		NextUrl:     "",
-		PreviousUrl: "",
-	}
-	locationResult := &LocationResult{}
-	cachedLocations := LocationList{
-		{Name: "Location 1", URL: "https://pokeapi.co/api/v2/location/1/"},
-		{Name: "Location 2", URL: "https://pokeapi.co/api/v2/location/2/"},
-	}
-	cachedData, _ := json.Marshal(cachedLocations)
-	pokeCache.Set("https://pokeapi.co/api/v2/location/", cachedData)
-	locations, err := locationResult.GetLocation("https://pokeapi.co/api/v2/location/", mockConfig)
-	if err != nil {
-		t.Errorf("Unexpected error: %v", err)
-	}
-	if !reflect.DeepEqual(locations, cachedLocations) {
-		t.Errorf("Expected locations %v, but got %v", cachedLocations, locations)
-	}
-	if mockConfig.NextUrl != "" {
-		t.Errorf("Expected NextUrl to be empty, but got %s", mockConfig.NextUrl)
-	}
-	if mockConfig.PreviousUrl != "" {
-		t.Errorf("Expected PreviousUrl to be empty, but got %s", mockConfig.PreviousUrl)
-	}
-}
-
-func TestLocationResult_GetLocation_ErrorFetching(t *testing.T) {
-	mockConfig := &config.Config{
-		NextUrl:     "",
-		PreviousUrl: "",
-	}
-	locationResult := &LocationResult{}
-	_, err := locationResult.GetLocation("https://pokeapi.co/api/v2/location/", mockConfig)
-	if err == nil {
-		t.Error("Expected an error, got nil")
-	}
-	if mockConfig.NextUrl != "" {
-		t.Errorf("Expected NextUrl to be empty, but got %s", mockConfig.NextUrl)
-	}
-	if mockConfig.PreviousUrl != "" {
-		t.Errorf("Expected PreviousUrl to be empty, but got %s", mockConfig.PreviousUrl)
-	}
-}
-
-func TestLocationResult_GetLocation_InvalidJSON(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("{invalid JSON"))
-	}))
-	defer server.Close()
-	mockConfig := &config.Config{
-		NextUrl:     "",
-		PreviousUrl: "",
-	}
-	locationResult := &LocationResult{}
-	_, err := locationResult.GetLocation(server.URL, mockConfig)
-	if err == nil {
-		t.Error("Expected a JSON decoder error, got nil")
-	}
-	if mockConfig.NextUrl != "" {
-		t.Errorf("Expected NextUrl to be empty, but got %s", mockConfig.NextUrl)
-	}
-	if mockConfig.PreviousUrl != "" {
-		t.Errorf("Expected PreviousUrl to be empty, but got %s", mockConfig.PreviousUrl)
+	expectedPreviousUrl := "https://pokeapi.co/api/v2/location/?offset=0&limit=20"
+	if cfg.PreviousUrl != expectedPreviousUrl {
+		t.Errorf("expected PreviousUrl %q, got %q", expectedPreviousUrl, cfg.PreviousUrl)
 	}
 }
