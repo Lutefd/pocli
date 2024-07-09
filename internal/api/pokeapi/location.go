@@ -66,5 +66,6 @@ func (l *LocationResult) GetLocation(url string, cfg *config.Config) (LocationLi
 	for _, item := range result.Results {
 		locations = append(locations, LocationInfo{Name: item.Name, URL: item.URL})
 	}
+
 	return locations, nil
 }
