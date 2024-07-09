@@ -63,6 +63,16 @@ func CommandsMap() map[string]cliCommand {
 			url:         "https://pokeapi.co/api/v2/pokemon/",
 			Callback:    catchCommand,
 		},
+		"inspect": {
+			name:        "inspect",
+			description: "Inspect a pokemon in your pokedex",
+			Callback:    inspectCommand,
+		},
+		"pokedex": {
+			name:        "pokedex",
+			description: "Show pokemon in your pokedex",
+			Callback:    pokedexCommand,
+		},
 	}
 }
 func commandHelp(cfg *config.Config, args []string) error {
@@ -187,5 +197,43 @@ func catchCommand(cfg *config.Config, args []string) error {
 	}
 	pokeDex.AddPokemon(*pokemon)
 	fmt.Printf("%s was caught!\n", pokemon.Name)
+	return nil
+}
+
+func inspectCommand(cfg *config.Config, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("no pokemon specified")
+	}
+	pokemon, ok := pokeDex.GetPokemon(args[0])
+	if !ok {
+		return fmt.Errorf("you haven't caught %s yet", args[0])
+	}
+	fmt.Printf("Name: %s\n", pokemon.Name)
+	fmt.Printf("Height: %d\n", pokemon.Height)
+	fmt.Printf("Weight: %d\n", pokemon.Weight)
+	fmt.Println("Stats:")
+	for _, stat := range pokemon.Stats {
+		fmt.Printf("  - %s: %d\n", stat.Stat.Name, stat.BaseStat)
+	}
+	fmt.Println("Types:")
+	for _, typeName := range pokemon.Types {
+		fmt.Printf("  - %s\n", typeName.Type.Name)
+	}
+	return nil
+}
+
+func pokedexCommand(cfg *config.Config, args []string) error {
+	if len(args) > 0 {
+		return fmt.Errorf("no arguments expected")
+	}
+	dex := pokeDex.GetPokemons()
+	if len(dex) == 0 {
+		fmt.Println("Your Pokedex is empty")
+		return nil
+	}
+	fmt.Println("Your Pokedex:")
+	for _, pokemon := range dex {
+		fmt.Printf("  - %s\n", pokemon.Name)
+	}
 	return nil
 }
