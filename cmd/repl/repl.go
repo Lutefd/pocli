@@ -2,6 +2,7 @@ package repl
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"poke-repl/internal/api/pokeapi"
@@ -14,6 +15,8 @@ type cliCommand struct {
 	url         string
 	Callback    func(cfg *config.Config, args []string) error
 }
+
+var pokeDex = pokeapi.NewPokedex()
 
 func CommandsMap() map[string]cliCommand {
 	return map[string]cliCommand{
@@ -53,6 +56,12 @@ func CommandsMap() map[string]cliCommand {
 			description: "Exlore the pokemon world area by area",
 			url:         "https://pokeapi.co/api/v2/location-area/",
 			Callback:    exploreCommand,
+		},
+		"catch": {
+			name:        "catch",
+			description: "Catch a pokemon",
+			url:         "https://pokeapi.co/api/v2/pokemon/",
+			Callback:    catchCommand,
 		},
 	}
 }
@@ -135,6 +144,9 @@ func mapCommand(cfg *config.Config, args []string) error {
 }
 
 func exploreCommand(cfg *config.Config, args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("no area specified")
+	}
 	if len(args) > 1 {
 		return fmt.Errorf("only one area can be explored at a time")
 	}
@@ -150,5 +162,30 @@ func exploreCommand(cfg *config.Config, args []string) error {
 	for _, pokemon := range pokemonList {
 		fmt.Printf("- %s\n", pokemon)
 	}
+	return nil
+}
+
+func catchCommand(cfg *config.Config, args []string) error {
+	if len(args) > 1 {
+		return fmt.Errorf("only one pokemon can be caught at a time")
+	}
+	cfg.Cmd = "catch"
+	cmd, err := LookupCommand("catch")
+
+	if err != nil {
+		return err
+	}
+	pokemon, err := pokeapi.Catch.CatchPokemon(cmd.url, args[0], cfg)
+	if err != nil {
+		return err
+	}
+	res := rand.Intn(pokemon.BaseExperience)
+	fmt.Printf("Throwing a Pokeball at %s...\n", pokemon.Name)
+	if res > 40 {
+		fmt.Printf("%s escaped!\n", pokemon.Name)
+		return nil
+	}
+	pokeDex.AddPokemon(*pokemon)
+	fmt.Printf("%s was caught!\n", pokemon.Name)
 	return nil
 }
